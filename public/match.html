@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Finding Your Match...</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap");
+
+      body {
+        font-family: "Poppins", sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        color: #fff;
+      }
+
+      .container {
+        background-color: rgba(255, 255, 255, 0.1);
+        padding: 40px;
+        border-radius: 15px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        text-align: center;
+        max-width: 600px;
+        width: 90%;
+      }
+
+      h1 {
+        font-weight: 600;
+      }
+
+      #status {
+        font-size: 1.2em;
+        margin-top: 20px;
+        min-height: 50px;
+      }
+
+      .loader {
+        border: 6px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top: 6px solid #fff;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+        margin: 20px auto;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .results {
+        margin-top: 20px;
+        text-align: left;
+        background: rgba(0, 0, 0, 0.2);
+        padding: 20px;
+        border-radius: 10px;
+      }
+
+      .results h3 {
+        margin-top: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+        padding-bottom: 10px;
+      }
+
+      .results p {
+        margin-bottom: 5px;
+      }
+
+      #user-list {
+        list-style-type: none;
+        padding: 0;
+      }
+
+      #user-list li {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 8px 12px;
+        margin-bottom: 5px;
+        border-radius: 5px;
+      }
+
+      button {
+        margin-top: 25px;
+        padding: 15px 30px;
+        border: none;
+        border-radius: 8px;
+        background-color: #fff;
+        color: #764ba2;
+        font-size: 18px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.3s, transform 0.2s;
+      }
+
+      button:hover {
+        background-color: #f0f0f0;
+        transform: translateY(-2px);
+      }
+
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Matching In Progress</h1>
+      <div id="loader" class="loader"></div>
+      <div id="status">Searching for collaborators with a similar goal...</div>
+
+      <div id="resultsContainer" class="hidden">
+        <div class="results">
+          <h3>Match Found!</h3>
+          <p><strong>Shared Goal:</strong> <span id="matchedGoal"></span></p>
+          <p><strong>Collaborators in this group:</strong></p>
+          <ul id="user-list"></ul>
+        </div>
+        <button id="collaborateBtn">Start Collaborating</button>
+      </div>
+    </div>
+
+    <script>
+      window.addEventListener("load", async () => {
+        const username = localStorage.getItem("username");
+        if (!username) {
+          window.location.href = "/";
+          return;
+        }
+
+        const statusDiv = document.getElementById("status");
+        const loader = document.getElementById("loader");
+        const resultsContainer = document.getElementById("resultsContainer");
+
+        try {
+          const response = await fetch(`/match/${username}`);
+          const data = await response.json();
+
+          if (response.ok) {
+            statusDiv.textContent = "We found a match for you!";
+            loader.classList.add("hidden");
+
+            document.getElementById("matchedGoal").textContent = data.mGoal;
+            const userList = document.getElementById("user-list");
+            userList.innerHTML = "";
+            data.usersId.forEach((user) => {
+              const li = document.createElement("li");
+              li.textContent = user;
+              userList.appendChild(li);
+            });
+
+            const collaborateBtn = document.getElementById("collaborateBtn");
+            collaborateBtn.onclick = () => {
+              window.location.href = `/collaborate/${data.goalId}`;
+            };
+
+            resultsContainer.classList.remove("hidden");
+          } else {
+            statusDiv.textContent = `Error: ${data.message}`;
+            loader.classList.add("hidden");
+          }
+        } catch (error) {
+          console.error("Failed to fetch match:", error);
+          statusDiv.textContent =
+            "Could not connect to the server to find a match.";
+          loader.classList.add("hidden");
+        }
+      });
+    </script>
+  </body>
+</html>

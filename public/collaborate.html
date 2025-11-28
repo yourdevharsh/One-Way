@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Collaboration & Shared Wallet</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap");
+
+      body {
+        font-family: "Poppins", sans-serif;
+        background: #f4f7f6;
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+
+      .main-wrapper {
+        display: flex;
+        width: 95%;
+        max-width: 1200px;
+        height: 90vh;
+        gap: 20px;
+      }
+
+      .chat-container {
+        flex: 1.5;
+        background: #fff;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .chat-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px;
+        text-align: center;
+      }
+      .chat-messages {
+        flex-grow: 1;
+        padding: 20px;
+        overflow-y: auto;
+      }
+      .message {
+        margin-bottom: 10px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        max-width: 80%;
+      }
+      .my-message {
+        align-self: flex-end;
+        background: #667eea;
+        color: white;
+        margin-left: auto;
+      }
+      .other-message {
+        background: #e0e0e0;
+        color: #333;
+      }
+      .notification {
+        text-align: center;
+        font-size: 0.8em;
+        color: #888;
+        margin: 5px 0;
+      }
+      .chat-form-container {
+        padding: 15px;
+        border-top: 1px solid #ddd;
+        display: flex;
+      }
+      #msgInput {
+        flex-grow: 1;
+        padding: 10px;
+        border-radius: 20px;
+        border: 1px solid #ddd;
+      }
+
+      .right-panel {
+        flex: 1.5;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        overflow-y: auto;
+      }
+
+      .card {
+        background: #fff;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        padding: 20px;
+      }
+
+      h2,
+      h3 {
+        margin-top: 0;
+        color: #2c3e50;
+      }
+
+      .balance-display {
+        font-size: 2em;
+        font-weight: bold;
+        color: #27ae60;
+        text-align: center;
+        margin: 10px 0;
+      }
+
+      .proposal-item {
+        border: 1px solid #eee;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+        background: #fafafa;
+      }
+      .proposal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .tag {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8em;
+        font-weight: bold;
+      }
+      .tag.PENDING {
+        background: #f1c40f;
+        color: #fff;
+      }
+      .tag.APPROVED {
+        background: #2ecc71;
+        color: #fff;
+      }
+      .tag.REJECTED {
+        background: #e74c3c;
+        color: #fff;
+      }
+
+      .vote-section {
+        margin-top: 10px;
+        border-top: 1px solid #ddd;
+        padding-top: 10px;
+      }
+      .btn-group {
+        display: flex;
+        gap: 5px;
+        margin-top: 5px;
+      }
+
+      button {
+        padding: 8px 15px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: 0.2s;
+      }
+      .btn-primary {
+        background: #667eea;
+        color: white;
+      }
+      .btn-success {
+        background: #2ecc71;
+        color: white;
+      }
+      .btn-danger {
+        background: #e74c3c;
+        color: white;
+      }
+      .btn-ai {
+        background: linear-gradient(45deg, #ff00cc, #333399);
+        color: white;
+        width: 100%;
+        margin-top: 10px;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main-wrapper">
+      <!-- Chat -->
+      <div class="chat-container">
+        <div class="chat-header">Chat Room</div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-form-container">
+          <form id="chatForm" style="width: 100%; display: flex">
+            <input
+              id="msgInput"
+              autocomplete="off"
+              placeholder="Type a message..."
+            />
+            <button class="btn-primary" style="margin-left: 5px">Send</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Right Panel -->
+      <div class="right-panel">
+        <!-- Wallet -->
+        <div class="card">
+          <h3>Shared Wallet</h3>
+          <div class="balance-display">
+            $<span id="balanceAmount">0.00</span>
+          </div>
+          <details>
+            <summary>Add Funds</summary>
+            <div style="margin-top: 10px">
+              <input
+                type="number"
+                id="fundAmount"
+                placeholder="Amount"
+                value="10"
+              />
+              <div
+                id="card-element"
+                style="
+                  padding: 10px;
+                  border: 1px solid #ddd;
+                  border-radius: 5px;
+                  margin-bottom: 10px;
+                "
+              ></div>
+              <button
+                id="contributeBtn"
+                class="btn-success"
+                style="width: 100%"
+              >
+                Pay & Add
+              </button>
+              <div
+                id="walletStatus"
+                style="margin-top: 5px; font-size: 0.8em"
+              ></div>
+            </div>
+          </details>
+        </div>
+
+        <!-- New Proposal Form -->
+        <div class="card">
+          <h3>Propose Spending</h3>
+          <input
+            type="text"
+            id="propRecipient"
+            placeholder="Recipient / Store Name"
+          />
+          <input
+            type="text"
+            id="propDesc"
+            placeholder="Reason (e.g., Server Hosting, Pizza)"
+          />
+          <input type="number" id="propAmount" placeholder="Amount ($)" />
+          <button
+            onclick="createProposal()"
+            class="btn-primary"
+            style="width: 100%"
+          >
+            Create Proposal
+          </button>
+        </div>
+
+        <!-- Active Proposals List -->
+        <div class="card">
+          <h3>Active Proposals</h3>
+          <div id="proposalsList">Loading...</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const username = localStorage.getItem("username");
+      const goalId = window.location.pathname.split("/").pop();
+      if (!username || !goalId) window.location.href = "/";
+
+      const socket = io();
+      const stripe = Stripe("pk_test_YOUR_PUBLISHABLE_KEY");
+      const elements = stripe.elements();
+      const cardElement = elements.create("card");
+      cardElement.mount("#card-element");
+
+      // --- Socket Events ---
+      socket.emit("join room", { goalId, username });
+
+      socket.on("chat message", (data) => addMsg(data.user, data.text, false));
+      socket.on("notification", (msg) => {
+        const div = document.createElement("div");
+        div.className = "notification";
+        div.textContent = msg;
+        document.getElementById("chatMessages").appendChild(div);
+      });
+
+      socket.on("wallet update", (data) => {
+        document.getElementById("balanceAmount").textContent =
+          data.balance.toFixed(2);
+        // Also notify in chat
+        const div = document.createElement("div");
+        div.className = "notification";
+        div.textContent = `Wallet: ${data.message}`;
+        document.getElementById("chatMessages").appendChild(div);
+        fetchProposals(); // Refresh proposals in case one was approved
+      });
+
+      socket.on("refresh proposals", () => fetchProposals());
+
+      // --- Chat Logic ---
+      document.getElementById("chatForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const inp = document.getElementById("msgInput");
+        if (inp.value.trim()) {
+          socket.emit("chat message", inp.value);
+          addMsg(username, inp.value, true);
+          inp.value = "";
+        }
+      });
+
+      function addMsg(user, text, isMe) {
+        const div = document.createElement("div");
+        div.className = `message ${isMe ? "my-message" : "other-message"}`;
+        div.textContent = isMe ? text : `${user}: ${text}`;
+        const container = document.getElementById("chatMessages");
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+      }
+
+      // --- Wallet Logic ---
+      document
+        .getElementById("contributeBtn")
+        .addEventListener("click", async () => {
+          const amount = document.getElementById("fundAmount").value;
+          const btn = document.getElementById("contributeBtn");
+          const status = document.getElementById("walletStatus");
+          btn.disabled = true;
+          status.textContent = "Processing...";
+
+          try {
+            const intentRes = await fetch("/create-payment-intent", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ amount, goalId }),
+            });
+            const { clientSecret } = await intentRes.json();
+
+            const result = await stripe.confirmCardPayment(clientSecret, {
+              payment_method: {
+                card: cardElement,
+                billing_details: { name: username },
+              },
+            });
+
+            if (result.error) throw new Error(result.error.message);
+
+            if (result.paymentIntent.status === "succeeded") {
+              await fetch("/verify-contribution", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  paymentIntentId: result.paymentIntent.id,
+                  goalId,
+                }),
+              });
+              status.textContent = "Success!";
+              cardElement.clear();
+            }
+          } catch (e) {
+            status.textContent = "Error: " + e.message;
+          }
+          btn.disabled = false;
+        });
+
+      // Load Initial Balance
+      fetch(`/wallet/${goalId}`)
+        .then((r) => r.json())
+        .then((d) => {
+          document.getElementById("balanceAmount").textContent =
+            d.balance.toFixed(2);
+        });
+
+      // --- Proposal Logic ---
+
+      async function createProposal() {
+        const recipient = document.getElementById("propRecipient").value;
+        const description = document.getElementById("propDesc").value;
+        const amount = document.getElementById("propAmount").value;
+
+        if (!recipient || !description || !amount)
+          return alert("Fill all fields");
+
+        await fetch("/proposals/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            goalId,
+            username,
+            recipient,
+            description,
+            amount,
+          }),
+        });
+
+        // Clear inputs
+        document.getElementById("propRecipient").value = "";
+        document.getElementById("propDesc").value = "";
+        document.getElementById("propAmount").value = "";
+      }
+
+      async function fetchProposals() {
+        const container = document.getElementById("proposalsList");
+        const res = await fetch(`/proposals/${goalId}`);
+        const proposals = await res.json();
+
+        container.innerHTML = "";
+        if (proposals.length === 0)
+          container.innerHTML = "<p>No active proposals.</p>";
+
+        proposals.forEach((p) => {
+          const el = document.createElement("div");
+          el.className = "proposal-item";
+
+          // Has current user voted
+          const myVote = p.votes.find((v) => v.user === username);
+
+          // Build Votes Display
+          const votesHtml = p.votes
+            .map(
+              (v) =>
+                `<div style="font-size:0.8em"><strong>${v.user}</strong>: ${v.vote} (${v.comment})</div>`
+            )
+            .join("");
+
+          // Action Buttons
+          let actions = "";
+          if (p.status === "PENDING") {
+            if (!myVote) {
+              actions = `
+                            <div class="vote-section">
+                                <input type="text" id="comment-${p.proposalId}" placeholder="Reason/Comment">
+                                <div class="btn-group">
+                                    <button class="btn-success" onclick="vote('${p.proposalId}', 'yes')">Approve</button>
+                                    <button class="btn-danger" onclick="vote('${p.proposalId}', 'no')">Reject</button>
+                                </div>
+                            </div>
+                        `;
+            }
+            // AI Judge Button
+            actions += `
+                        <button class="btn-ai" onclick="finalizeProposal('${p.proposalId}')">
+                            ✨ Ask AI Judge to Decide
+                        </button>
+                    `;
+          }
+
+          // AI Reason Display
+          let aiFeedback = "";
+          if (p.status !== "PENDING" && p.aiReason) {
+            aiFeedback = `<div style="margin-top:10px; padding:10px; background:#eef; border-radius:5px; font-size:0.9em;">
+                        <strong>AI Verdict:</strong> ${p.aiReason}
+                    </div>`;
+          }
+
+          el.innerHTML = `
+                    <div class="proposal-header">
+                        <span><strong>$${p.amount}</strong> for ${
+            p.recipient
+          }</span>
+                        <span class="tag ${p.status}">${p.status}</span>
+                    </div>
+                    <p style="font-size:0.9em; color:#555;">${p.description}</p>
+                    <p style="font-size:0.8em; color:#888;">By: ${
+                      p.requester
+                    }</p>
+                    
+                    <div style="margin:10px 0; border-left:2px solid #ddd; padding-left:10px;">
+                        ${votesHtml || "No votes yet."}
+                    </div>
+                    
+                    ${actions}
+                    ${aiFeedback}
+                `;
+          container.appendChild(el);
+        });
+      }
+
+      async function vote(proposalId, decision) {
+        const comment =
+          document.getElementById(`comment-${proposalId}`).value ||
+          "No comment";
+        await fetch("/proposals/vote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            proposalId,
+            username,
+            vote: decision,
+            comment,
+          }),
+        });
+      }
+
+      async function finalizeProposal(proposalId) {
+        const btn = event.target;
+        btn.textContent = "AI is thinking...";
+        btn.disabled = true;
+
+        const res = await fetch("/proposals/finalize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ proposalId }),
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+          alert(data.message);
+          btn.textContent = "Try Again";
+          btn.disabled = false;
+        }
+      }
+
+      // Initial Load
+      fetchProposals();
+    </script>
+  </body>
+</html>
